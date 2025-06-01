@@ -1,0 +1,268 @@
+service: reto-star-wars-api
+
+frameworkVersion: '3'
+
+plugins:
+  - serverless-plugin-typescript
+  - serverless-jetpack
+  - serverless-offline
+
+custom:
+  jetpack:
+    include:
+      - node_modules/mysql2/**
+
+provider:
+  name: aws
+  runtime: nodejs16.x
+  timeout: 20
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - 'sqs:ReceiveMessage'
+        - 'sqs:DeleteMessage'
+        - 'sqs:GetQueueAttributes'
+      Resource:
+        - !GetAtt SQSPE.Arn
+        - !GetAtt SQSCL.Arn
+    - Effect: 'Allow'
+      Action:
+        - 'ec2:CreateNetworkInterface'
+        - 'ec2:DescribeNetworkInterfaces'
+        - 'ec2:DeleteNetworkInterface'
+      Resource: '*'
+    - Effect: Allow
+      Action:
+        - dynamodb:CreateTable
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:DescribeTable
+      Resource:
+        - { 'Fn::GetAtt': ['AppointmentTable', 'Arn'] }
+
+    - Effect: Allow
+      Action:
+        - SNS:Publish
+      Resource:
+        - !Ref AppointmentSNS
+
+    # - Effect: Allow
+    #   Action:
+    #     - SQS:SendMessage
+    #   Resource:
+    #     - !GetAtt SQSPE.Arn
+    #     - !GetAtt SQSCL.Arn
+
+    - Effect: Allow
+      Action:
+        - events:PutEvents
+      Resource: arn:aws:events:us-east-1:506066092752:event-bus/appointment-event-bus
+
+    - Effect: 'Allow'
+      Action:
+        - 'sqs:ReceiveMessage'
+        - 'sqs:DeleteMessage'
+        - 'sqs:GetQueueAttributes'
+      Resource:
+        - !GetAtt SQSCompliance.Arn
+
+# Politicas de Recursos
+resources:
+  Resources:
+    #ROLE DE EJECUCION PARA LA REGLA DE MI EVENTBUS (EVENTBRIDGE)
+    EventBridgeToSQSComplianceRole:
+      Type: AWS::IAM::Role
+      Properties:
+        AssumeRolePolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service: events.amazonaws.com
+              Action: sts:AssumeRole
+        Policies:
+          - PolicyName: EventBridgeSQSSend
+            PolicyDocument:
+              Version: '2012-10-17'
+              Statement:
+                - Effect: Allow
+                  Action: sqs:SendMessage
+                  Resource: !GetAtt SQSCompliance.Arn
+    # PERMISO PARA QUE LA SQS COMPLIANCE CONFIE EN EVENTBRIDGE (BUS)
+    QueuePolicySQSCOMPLIANCE:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal: '*'
+              Action: 'SQS:SendMessage'
+              Resource: !GetAtt SQSCompliance.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !GetAtt AppointmentEventBus.Arn
+        Queues:
+          - !Ref SQSCompliance
+
+    QueuePolicy:
+      Type: AWS::SQS::QueuePolicy
+      Properties:
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Principal: '*'
+              Action: 'SQS:SendMessage'
+              Resource: !GetAtt SQSPE.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !Ref AppointmentSNS
+            - Effect: Allow
+              Principal: '*'
+              Action: 'SQS:SendMessage'
+              Resource: !GetAtt SQSCL.Arn
+              Condition:
+                ArnEquals:
+                  aws:SourceArn: !Ref AppointmentSNS
+        Queues:
+          - !Ref SQSPE
+          - !Ref SQSCL
+
+    AppointmentTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: AppointmentTable
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+
+    #Bus de Eventos (Conformidad)
+    AppointmentEventBus:
+      Type: AWS::Events::EventBus
+      Properties:
+        Name: appointment-event-bus
+
+    # SNS
+    AppointmentSNS:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: appointment-topic
+
+    # SQS
+    SQSPE:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: SQSPE
+
+    SQSCL:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: SQSCL
+
+    SQSSubscriptionPE:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Endpoint: !GetAtt SQSPE.Arn
+        Protocol: sqs
+        TopicArn: !Ref AppointmentSNS
+        FilterPolicy:
+          countryISO:
+            - 'PE'
+
+    SQSSubscriptionCL:
+      Type: AWS::SNS::Subscription
+      Properties:
+        Endpoint: !GetAtt SQSCL.Arn
+        Protocol: sqs
+        TopicArn: !Ref AppointmentSNS
+        FilterPolicy:
+          countryISO:
+            - 'CL'
+    #SQS CONFORMIDAD
+    SQSCompliance:
+      Type: AWS::SQS::Queue
+      Properties:
+        QueueName: SQSCompliance
+
+    # ESTA REGLA LE PERMITE A EVENTBRIDGE SABER A DONDE VA ENVIAR LOS EVENTOS
+    EventBridgeRuleToSQSCompliance:
+      Type: AWS::Events::Rule
+      Properties:
+        Name: EventBridgeToSQSComplianceRule
+        EventBusName: !Ref AppointmentEventBus
+        EventPattern:
+          source:
+            - 'appointment-service'
+          detail-type:
+            - 'AppointmentConfirmed'
+        Targets:
+          - Arn: !GetAtt SQSCompliance.Arn
+            Id: SQSComplianceTarget
+            RoleArn: !GetAtt EventBridgeToSQSComplianceRole.Arn
+
+functions:
+  api:
+    handler: src/aws-infrastructure/lambda-handlers/createAppointment.handler
+    environment:
+      SNS_TOPIC_ARN: !Ref AppointmentSNS
+    events:
+      - httpApi:
+          method: any
+          path: /{proxy+}
+      # - httpApi:
+      #     path: appointment/{insuredId}
+      #     method: get
+
+  completeAppointmentsHandler:
+    handler: src/aws-infrastructure/lambda-handlers/completeAppointment.handler
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - SQSCompliance
+              - Arn
+          batchSize: 5
+
+  appointmentCLHandler:
+    handler: src/aws-infrastructure/lambda-handlers/appointmentCL.handler
+    environment:
+      MYSQL_HOST: databasecl.caf0qiwmoxrk.us-east-1.rds.amazonaws.com
+      MYSQL_USER: admin
+      MYSQL_PASSWORD: vbw196723_
+      MYSQL_DB: cldb
+      EVENT_BUS_NAME: !Ref AppointmentEventBus
+
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - SQSCL
+              - Arn
+          batchSize: 6
+
+  appointmentPEHandler:
+    handler: src/aws-infrastructure/lambda-handlers/appointmentPE.handler
+    environment:
+      MYSQL_HOST_PE: databasepe.caf0qiwmoxrk.us-east-1.rds.amazonaws.com
+      MYSQL_USER_PE: admin
+      MYSQL_PASSWORD_PE: vbw196723_
+      MYSQL_DB_PE: pedb
+      EVENT_BUS_NAME: !Ref AppointmentEventBus
+    events:
+      - sqs:
+          arn:
+            Fn::GetAtt:
+              - SQSPE
+              - Arn
+          batchSize: 6
