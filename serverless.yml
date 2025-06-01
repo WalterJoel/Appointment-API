@@ -1,4 +1,4 @@
-service: reto-star-wars-api
+service: reto-rimac-appointment
 
 frameworkVersion: '3'
 
@@ -16,7 +16,22 @@ provider:
   name: aws
   runtime: nodejs16.x
   timeout: 20
+  region: us-east-1
+  # Variables de entorno que utiliza la API
+  environment:
+    SECRET_ARN_PE: arn:aws:secretsmanager:us-east-1:506066092752:secret:dbpe-67crFs
+    SECRET_ARN_CL: arn:aws:secretsmanager:us-east-1:506066092752:secret:dbcl-4Nq58k
+
   iamRoleStatements:
+    # Secret Manager policy
+    - Effect: Allow
+      Action:
+        - secretsmanager:GetSecretValue
+      Resource:
+        - arn:aws:secretsmanager:us-east-1:506066092752:secret:dbpe-67crFs
+        - arn:aws:secretsmanager:us-east-1:506066092752:secret:dbcl-4Nq58k
+
+    # SQS
     - Effect: Allow
       Action:
         - 'sqs:ReceiveMessage'
@@ -212,7 +227,7 @@ resources:
             RoleArn: !GetAtt EventBridgeToSQSComplianceRole.Arn
 
 functions:
-  api:
+  appointment:
     handler: src/aws-infrastructure/lambda-handlers/createAppointment.handler
     environment:
       SNS_TOPIC_ARN: !Ref AppointmentSNS
@@ -237,12 +252,7 @@ functions:
   appointmentCLHandler:
     handler: src/aws-infrastructure/lambda-handlers/appointmentCL.handler
     environment:
-      MYSQL_HOST: databasecl.caf0qiwmoxrk.us-east-1.rds.amazonaws.com
-      MYSQL_USER: admin
-      MYSQL_PASSWORD: vbw196723_
-      MYSQL_DB: cldb
       EVENT_BUS_NAME: !Ref AppointmentEventBus
-
     events:
       - sqs:
           arn:
@@ -254,10 +264,6 @@ functions:
   appointmentPEHandler:
     handler: src/aws-infrastructure/lambda-handlers/appointmentPE.handler
     environment:
-      MYSQL_HOST_PE: databasepe.caf0qiwmoxrk.us-east-1.rds.amazonaws.com
-      MYSQL_USER_PE: admin
-      MYSQL_PASSWORD_PE: vbw196723_
-      MYSQL_DB_PE: pedb
       EVENT_BUS_NAME: !Ref AppointmentEventBus
     events:
       - sqs:

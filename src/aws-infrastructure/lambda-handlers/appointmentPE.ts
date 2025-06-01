@@ -1,21 +1,30 @@
 import { SQSEvent, SQSHandler } from 'aws-lambda';
 import * as mysql from 'mysql2/promise';
 
-import { sendEventToEventBridge } from '../services/eventbridge.service';
+import { AwsEventBridgeService } from '../services/aws-eventbridge.service';
+import { AwsSecretsService } from '../services/aws-secretsmanager.service';
 
-// Configuración de la conexión MySQL
-const pool = mysql.createPool({
-  host: process.env.MYSQL_HOST_PE,
-  user: process.env.MYSQL_USER_PE,
-  password: process.env.MYSQL_PASSWORD_PE,
-  database: process.env.MYSQL_DB_PE,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-});
+const eventBridgeService = new AwsEventBridgeService();
+const secretsService = new AwsSecretsService();
+
+let pool = null;
 
 // const dynamoDb = new DynamoDB.DocumentClient();
 export const handler: SQSHandler = async (event: SQSEvent) => {
+  if (!pool) {
+    const secretArn = process.env.SECRET_ARN_PE!;
+    const secret = await secretsService.getSecret(secretArn);
+
+    pool = mysql.createPool({
+      host: secret.host,
+      user: secret.username,
+      password: secret.password,
+      database: secret.dbname,
+      waitForConnections: true,
+      connectionLimit: 10,
+      queueLimit: 0,
+    });
+  }
   console.log(event, ' RECORDS');
   if (!event.Records) {
     throw new Error('No records from SNS');
@@ -52,7 +61,7 @@ export const handler: SQSHandler = async (event: SQSEvent) => {
 
       // Enviar evento a EventBridge
       const eventDetail = { insuredId, scheduleId, countryISO, dynamoId };
-      await sendEventToEventBridge(eventDetail);
+      await eventBridgeService.sendEvent(eventDetail);
     } catch (error) {
       console.error('Error procesando el mensaje:', error);
       return error.message;

@@ -1,10 +1,11 @@
 import { SQSEvent, SQSHandler } from 'aws-lambda';
 import { SQS } from 'aws-sdk';
-import mysql from 'mysql2';
+import mysql, { Pool } from 'mysql2/promise';
+
 // import { DynamoDB } from 'aws-sdk';
 
 // Configuración de la conexión MySQL
-const pool = mysql.createPool({
+const pool: Pool = mysql.createPool({
   host: process.env.MYSQL_HOST, // El host de tu base de datos RDS
   user: process.env.MYSQL_USER, // El usuario de la base de datos
   password: process.env.MYSQL_PASSWORD, // La contraseña de la base de datos

@@ -1,47 +1,33 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Body,
-  Patch,
-  Param,
-  Delete,
-} from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param } from '@nestjs/common';
 import { AppointmentService } from './appointment.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
-// import { ApiBody } from '@nestjs/swagger';
+import {
+  DocCreateAppointment,
+  DocFindByInsured,
+  DocFindAllAppointments,
+} from './docs/appointment.docs';
 
-@Controller('appointment')
+@Controller()
 export class AppointmentController {
-  constructor(private readonly appointmentService: AppointmentService) {
-    console.log('appointmentService in controller:', this.appointmentService);
-  }
+  constructor(private readonly appointmentService: AppointmentService) {}
 
-  // @ApiBody({ type: CreateAppointmentDto })
   @Post('create')
+  @DocCreateAppointment()
   create(@Body() createAppointmentDto: CreateAppointmentDto) {
-    try {
-      return this.appointmentService.create(createAppointmentDto);
-    } catch (error) {
-      console.error('❌ Error en AppointmentController.create:', error);
-      throw new Error(error);
-    }
+    return this.appointmentService.create(createAppointmentDto);
   }
 
-  // @Get(':insuredId')
-  // findByInsure(@Param('id') id: string) {
-  //   return this.appointmentService.findByInsure(id);
-  // }
+  @Get(':insuredId')
+  @DocFindByInsured()
+  findByInsure(@Param('id') id: string) {
+    return this.appointmentService.findByInsure(id);
+  }
 
-  // @Get()
-  // findAll() {
-  //   return this.appointmentService.findAll();
-  // }
-
-  // @Get(':id')
-  // findOne(@Param('id') id: string) {
-  //   return this.appointmentService.findOne(+id);
-  // }
+  @Get()
+  @DocFindAllAppointments()
+  findAll() {
+    return this.appointmentService.findAll();
+  }
 
   @Patch(':id')
   update(@Param('id') id: string) {
