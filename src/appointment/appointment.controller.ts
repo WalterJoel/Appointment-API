@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Body, Patch, Param } from '@nestjs/common';
 import { AppointmentService } from './appointment.service';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
+import { CreateAppointmentRdsDto } from './dto/create-appointment-rds.dto';
+
 import {
   DocCreateAppointment,
   DocFindByInsured,
@@ -15,6 +17,13 @@ export class AppointmentController {
   @DocCreateAppointment()
   create(@Body() createAppointmentDto: CreateAppointmentDto) {
     return this.appointmentService.create(createAppointmentDto);
+  }
+  @Post('createRds')
+  // @DocCreateAppointment()
+  createAppointmentRds(
+    @Body() createAppointmentRdsDto: CreateAppointmentRdsDto,
+  ) {
+    return this.appointmentService.createRds(createAppointmentRdsDto);
   }
 
   @Get(':insuredId')
@@ -31,6 +40,6 @@ export class AppointmentController {
 
   @Patch(':id')
   update(@Param('id') id: string) {
-    return this.appointmentService.update(+id);
+    return this.appointmentService.update(id);
   }
 }

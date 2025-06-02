@@ -2,13 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { AppointmentModel } from './entities/appointment.model';
 import { AwsSnsService } from '../aws-infrastructure/services/aws-sns.service';
+import { AwsSecretsService } from '../aws-infrastructure/services/aws-secretsmanager.service';
+import { CreateAppointmentRdsDto } from './dto/create-appointment-rds.dto';
+
 import { uuid } from 'uuidv4';
+import * as mysql from 'mysql2/promise';
 
 import { AppointmentSnsPayload } from '../aws-infrastructure/interfaces';
 
 @Injectable()
 export class AppointmentService {
-  constructor(private readonly awsSnsService: AwsSnsService) {}
+  constructor(
+    private readonly awsSnsService: AwsSnsService,
+    private readonly secretsService: AwsSecretsService,
+  ) {}
   async create(createAppointmentDto: CreateAppointmentDto) {
     try {
       if (!createAppointmentDto) {
@@ -108,7 +115,8 @@ export class AppointmentService {
       };
     }
   }
-  async update(id: number) {
+  async update(id: string) {
+    console.log(' UPDATING FROM SQS', id);
     try {
       const appointment = await AppointmentModel.update(
         { id },
@@ -136,6 +144,36 @@ export class AppointmentService {
           error: error.message,
         }),
       };
+    }
+  }
+  // Insert mysql
+  async createRds(
+    createAppointmentRdsDto: CreateAppointmentRdsDto,
+  ): Promise<void> {
+    const { insuredId, scheduleId, countryISO, dynamoId } =
+      createAppointmentRdsDto;
+
+    const secretArn =
+      countryISO === 'PE'
+        ? process.env.SECRET_ARN_PE!
+        : process.env.SECRET_ARN_CL!;
+
+    const secret = await this.secretsService.getSecret(secretArn);
+
+    const connection = await mysql.createConnection({
+      host: secret.host,
+      user: secret.username,
+      password: secret.password,
+      database: secret.dbname,
+    });
+
+    try {
+      await connection.execute(
+        `INSERT INTO appointments (insured_id, schedule_id, country_iso, dynamo_id) VALUES (?, ?, ?, ?)`,
+        [insuredId, scheduleId, countryISO, dynamoId],
+      );
+    } finally {
+      await connection.end();
     }
   }
 }

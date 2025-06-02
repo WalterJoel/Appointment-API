@@ -1,6 +1,6 @@
 ## Descripción
 
-Serverless Star Wars API. Hecha con [NestJs](https://github.com/nestjs/nest) y [SWAPI](https://swapi.py4e.com/).
+Serverless Appointment API. Hecha con [NestJs](https://github.com/nestjs/nest) .
 
 ## Instalación
 
@@ -14,7 +14,7 @@ $ npm install
 # Local
 $ sls offline
 
-# Despliegue AWS (asegurar de tener configurado las credenciales en ./aws)
+# Despliegue AWS (asegurar de tener configurado las credenciales en )
 $ sls deploy
 ```
 

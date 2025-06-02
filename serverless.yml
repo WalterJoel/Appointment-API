@@ -21,6 +21,12 @@ provider:
   environment:
     SECRET_ARN_PE: arn:aws:secretsmanager:us-east-1:506066092752:secret:dbpe-67crFs
     SECRET_ARN_CL: arn:aws:secretsmanager:us-east-1:506066092752:secret:dbcl-4Nq58k
+    API_APPOINTMENT_URL:
+      Fn::Join:
+        - ''
+        - - 'https://'
+          - Ref: HttpApi
+          - '.execute-api.${self:provider.region}.amazonaws.com'
 
   iamRoleStatements:
     # Secret Manager policy
@@ -88,6 +94,13 @@ provider:
 # Politicas de Recursos
 resources:
   Resources:
+    # GET
+    HttpApi:
+      Type: AWS::ApiGatewayV2::Api
+      Properties:
+        Name: appointment-api
+        ProtocolType: HTTP
+
     #ROLE DE EJECUCION PARA LA REGLA DE MI EVENTBUS (EVENTBRIDGE)
     EventBridgeToSQSComplianceRole:
       Type: AWS::IAM::Role
@@ -235,9 +248,6 @@ functions:
       - httpApi:
           method: any
           path: /{proxy+}
-      # - httpApi:
-      #     path: appointment/{insuredId}
-      #     method: get
 
   completeAppointmentsHandler:
     handler: src/aws-infrastructure/lambda-handlers/completeAppointment.handler
