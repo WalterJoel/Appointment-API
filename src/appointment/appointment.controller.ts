@@ -19,7 +19,6 @@ export class AppointmentController {
     return this.appointmentService.create(createAppointmentDto);
   }
   @Post('createRds')
-  // @DocCreateAppointment()
   createAppointmentRds(
     @Body() createAppointmentRdsDto: CreateAppointmentRdsDto,
   ) {

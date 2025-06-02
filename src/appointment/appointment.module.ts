@@ -6,6 +6,6 @@ import { AwsServicesModule } from '../aws-infrastructure/aws-services.module';
   imports: [AwsServicesModule],
   controllers: [AppointmentController],
   providers: [AppointmentService],
-  // exports: [AppointmentService], // Opcional si solo lo usas dentro del módulo
+  // exports: [AppointmentService],
 })
 export class AppointmentModule {}

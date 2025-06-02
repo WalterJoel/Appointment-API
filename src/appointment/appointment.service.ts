@@ -4,7 +4,7 @@ import { AppointmentModel } from './entities/appointment.model';
 import { AwsSnsService } from '../aws-infrastructure/services/aws-sns.service';
 import { AwsSecretsService } from '../aws-infrastructure/services/aws-secretsmanager.service';
 import { CreateAppointmentRdsDto } from './dto/create-appointment-rds.dto';
-
+import { SECRET_ARN_CL, SECRET_ARN_PE } from '../common/constants';
 import { uuid } from 'uuidv4';
 import * as mysql from 'mysql2/promise';
 
@@ -153,10 +153,7 @@ export class AppointmentService {
     const { insuredId, scheduleId, countryISO, dynamoId } =
       createAppointmentRdsDto;
 
-    const secretArn =
-      countryISO === 'PE'
-        ? process.env.SECRET_ARN_PE!
-        : process.env.SECRET_ARN_CL!;
+    const secretArn = countryISO === 'PE' ? SECRET_ARN_PE : SECRET_ARN_CL;
 
     const secret = await this.secretsService.getSecret(secretArn);
 

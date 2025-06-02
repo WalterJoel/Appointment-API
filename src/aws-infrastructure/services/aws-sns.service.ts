@@ -1,11 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { SNS } from 'aws-sdk';
 import { AppointmentSnsPayload } from '../interfaces';
+import { SNS_TOPIC_ARN } from '../../common/constants';
 
 @Injectable()
 export class AwsSnsService {
   private sns = new SNS({ region: process.env.AWS_REGION });
-  private topicArn = process.env.SNS_TOPIC_ARN;
+  private topicArn = SNS_TOPIC_ARN;
 
   async publishAppointment(message: AppointmentSnsPayload) {
     if (!this.topicArn) {

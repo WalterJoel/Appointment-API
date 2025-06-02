@@ -1,9 +1,12 @@
 import { SQSEvent, SQSHandler } from 'aws-lambda';
 import { AwsEventBridgeService } from '../services/aws-eventbridge.service';
+import { AppointmentSnsPayload } from '../interfaces';
 
 import axios from 'axios';
+import { API_BASE_URL } from '../../common/constants';
 
 const eventBridgeService = new AwsEventBridgeService();
+const API_BASE = `${API_BASE_URL}/createRds`;
 
 export const handler: SQSHandler = async (event: SQSEvent) => {
   if (!event.Records) {
@@ -17,31 +20,29 @@ export const handler: SQSHandler = async (event: SQSEvent) => {
       }
       const notification = JSON.parse(record.body);
 
-      if (!notification.Message) {
+      if (!notification?.Message) {
         console.error('Message field is missing or invalid');
         continue;
       }
 
-      const body = JSON.parse(notification.Message);
-      console.log('BODY CORRECTO:', body);
-      const { insuredId, scheduleId, countryISO, dynamoId } = body;
-      await axios.post(
-        `${process.env.APPOINTMENT_API_URL}/appointments/mysql`,
-        {
-          insuredId,
-          scheduleId,
-          countryISO,
-          dynamoId,
-        },
-      );
-      // Insertar cita
+      const body: AppointmentSnsPayload = JSON.parse(notification.Message);
+
+      // Insertar cita rds
+      try {
+        await axios.post(API_BASE, body);
+      } catch (error: any) {
+        console.error(
+          'Error al enviar a Insertar a RDS',
+          error?.message || error,
+        );
+        continue;
+      }
 
       // Enviar evento a EventBridge
-      const eventDetail = { insuredId, scheduleId, countryISO, dynamoId };
-      await eventBridgeService.sendEvent(eventDetail);
+      await eventBridgeService.sendEvent(body);
     } catch (error) {
       console.error('Error procesando el mensaje:', error);
-      return error.message;
+      continue;
     }
   }
 };

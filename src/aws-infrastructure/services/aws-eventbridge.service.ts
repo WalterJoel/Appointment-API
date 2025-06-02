@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { EventBridge } from 'aws-sdk';
-
+import { EVENT_BUS_NAME } from '../../common/constants';
 @Injectable()
 export class AwsEventBridgeService {
   private eventBridge = new EventBridge({ region: process.env.AWS_REGION });
-  private eventBusName = process.env.EVENT_BUS_NAME || 'appointment-event-bus';
+  private eventBusName = EVENT_BUS_NAME;
 
   async sendEvent(eventDetail: any) {
     const params = {

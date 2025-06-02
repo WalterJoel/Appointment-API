@@ -71,13 +71,6 @@ provider:
       Resource:
         - !Ref AppointmentSNS
 
-    # - Effect: Allow
-    #   Action:
-    #     - SQS:SendMessage
-    #   Resource:
-    #     - !GetAtt SQSPE.Arn
-    #     - !GetAtt SQSCL.Arn
-
     - Effect: Allow
       Action:
         - events:PutEvents
@@ -94,7 +87,7 @@ provider:
 # Politicas de Recursos
 resources:
   Resources:
-    # GET
+    # GET NAME ENDPOINT
     HttpApi:
       Type: AWS::ApiGatewayV2::Api
       Properties:
@@ -120,6 +113,7 @@ resources:
                 - Effect: Allow
                   Action: sqs:SendMessage
                   Resource: !GetAtt SQSCompliance.Arn
+
     # PERMISO PARA QUE LA SQS COMPLIANCE CONFIE EN EVENTBRIDGE (BUS)
     QueuePolicySQSCOMPLIANCE:
       Type: AWS::SQS::QueuePolicy

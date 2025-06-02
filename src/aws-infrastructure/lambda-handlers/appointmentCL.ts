@@ -1,56 +1,48 @@
 import { SQSEvent, SQSHandler } from 'aws-lambda';
-import { SQS } from 'aws-sdk';
-import mysql, { Pool } from 'mysql2/promise';
+import { AwsEventBridgeService } from '../services/aws-eventbridge.service';
+import { AppointmentSnsPayload } from '../interfaces';
 
-// import { DynamoDB } from 'aws-sdk';
+import axios from 'axios';
+import { API_BASE_URL } from '../../common/constants';
 
-// Configuración de la conexión MySQL
-const pool: Pool = mysql.createPool({
-  host: process.env.MYSQL_HOST, // El host de tu base de datos RDS
-  user: process.env.MYSQL_USER, // El usuario de la base de datos
-  password: process.env.MYSQL_PASSWORD, // La contraseña de la base de datos
-  database: process.env.MYSQL_DB, // El nombre de la base de datos
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0,
-});
-
-// const dynamoDb = new DynamoDB.DocumentClient();
+const eventBridgeService = new AwsEventBridgeService();
+const API_BASE = `${API_BASE_URL}/createRds`;
 
 export const handler: SQSHandler = async (event: SQSEvent) => {
+  if (!event.Records) {
+    throw new Error('No records from SQS');
+  }
   for (const record of event.Records) {
     try {
-      // Primero, revisa que record.body esté bien
       if (!record.body) {
         console.error('Record body is undefined or empty');
-        return; // Salir si no hay un body válido
+        continue;
       }
+      const notification = JSON.parse(record.body);
 
-      const notification = JSON.parse(record.body); // primer parse
-      console.log('NOTIFICATION:', notification);
-
-      // Verifica que notification.Message sea un JSON válido
-      if (!notification.Message) {
+      if (!notification?.Message) {
         console.error('Message field is missing or invalid');
-        return;
+        continue;
       }
 
-      const body = JSON.parse(notification.Message); // segundo parse
-      console.log('BODY CORRECTO:', body);
-      const { insuredId, scheduleId, countryISO, dynamoId } = body;
+      const body: AppointmentSnsPayload = JSON.parse(notification.Message);
 
-      // Insertar cita
-      const queryResult = await pool.execute(
-        `INSERT INTO appointments (insured_id, schedule_id, country_iso, dynamo_id) VALUES (?, ?, ?, ?)`,
-        [insuredId, scheduleId, countryISO, dynamoId],
-      );
+      // Insertar cita rds
+      try {
+        await axios.post(API_BASE, body);
+      } catch (error: any) {
+        console.error(
+          'Error al enviar a Insertar a RDS',
+          error?.message || error,
+        );
+        continue;
+      }
+
       // Enviar evento a EventBridge
-      const eventDetail = { insuredId, scheduleId, countryISO, dynamoId };
-      // await sendEventToEventBridge(eventDetail);
-      console.log('Insert exitoso:', queryResult);
+      await eventBridgeService.sendEvent(body);
     } catch (error) {
       console.error('Error procesando el mensaje:', error);
-      return error.message;
+      continue;
     }
   }
 };
